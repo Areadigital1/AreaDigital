@@ -1,0 +1,2628 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barbearia - Agendamento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        barber: {
+                            primary: '#5D5CDE',
+                            secondary: '#2c2c2c',
+                            accent: '#D4AF37',
+                            dark: '#181818',
+                            light: '#f5f5f5'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #5D5CDE;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .time-slot {
+            transition: all 0.2s ease;
+        }
+        
+        .time-slot:hover:not(.time-slot-disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .time-slot-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: rgba(156, 163, 175, 0.2);
+        }
+        
+        .calendar-day {
+            transition: all 0.3s ease;
+        }
+        
+        .calendar-day:hover:not(.inactive):not(.disabled) {
+            background-color: #5D5CDE;
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .calendar-day.selected {
+            background-color: #5D5CDE;
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .calendar-day.today {
+            position: relative;
+        }
+        
+        .calendar-day.today:after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 100%;
+            background-color: currentColor;
+        }
+        
+        .calendar-day.inactive {
+            opacity: 0.3;
+            cursor: default;
+        }
+        
+        .calendar-day.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
+        
+        .appointment-card {
+            transition: all 0.3s ease;
+        }
+        
+        .appointment-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .service-card {
+            transition: all 0.3s ease;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .barber-card {
+            transition: all 0.3s ease;
+        }
+        
+        .barber-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .tab-indicator {
+            transition: transform 0.3s ease;
+        }
+        
+        .hero-overlay {
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 100%);
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(93, 92, 222, 0.5);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(93, 92, 222, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-barber-light dark:bg-barber-dark text-gray-900 dark:text-white min-h-screen">
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900 bg-opacity-90">
+        <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-2xl max-w-md w-full p-6 relative">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl sm:text-3xl font-bold text-barber-primary mb-2">Bem-vindo à Barbearia</h2>
+                <p class="text-gray-600 dark:text-gray-300">Faça login para acessar seu agendamento</p>
+            </div>
+
+            <div class="mb-6">
+                <button id="googleLoginBtn" class="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-800 font-medium py-3 px-4 border border-gray-300 rounded-md shadow-sm transition duration-150 ease-in-out">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path>
+                        <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path>
+                        <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path>
+                        <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
+                    </svg>
+                    Entrar com Google
+                </button>
+            </div>
+
+            <div class="mb-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white dark:bg-barber-secondary text-gray-500 dark:text-gray-400">ou</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <button id="guestLoginBtn" class="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium py-3 px-4 rounded-md transition duration-150 ease-in-out">
+                    Continuar como convidado
+                </button>
+            </div>
+
+            <p class="text-xs text-center text-gray-500 dark:text-gray-400">
+                Ao fazer login, você concorda com os Termos de Serviço e Política de Privacidade.
+            </p>
+        </div>
+    </div>
+
+    <!-- User Profile Dropdown -->
+    <div id="userDropdown" class="hidden absolute right-4 top-16 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-barber-secondary ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-gray-700 z-50">
+        <div class="px-4 py-3">
+            <p class="text-sm">Logado como</p>
+            <p id="userEmail" class="text-sm font-medium truncate"></p>
+        </div>
+        <div class="py-1">
+            <button id="logoutBtn" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                Sair
+            </button>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="hidden">
+        <!-- Header -->
+        <header id="shopHero" class="relative bg-cover bg-center h-64 sm:h-80 md:h-96">
+            <div class="absolute inset-0 hero-overlay"></div>
+            <div class="relative container mx-auto px-4 h-full flex flex-col justify-end z-10 pb-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h1 id="shopName" class="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2">Carregando...</h1>
+                        <p id="shopDescription" class="text-sm sm:text-base md:text-lg text-gray-200 max-w-2xl">Aguarde enquanto carregamos os dados da barbearia...</p>
+                    </div>
+                    <button id="userProfileBtn" class="hidden p-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full focus:outline-none">
+                        <img id="userAvatar" class="w-8 h-8 rounded-full" src="https://ui-avatars.com/api/?background=random" alt="Perfil">
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="bg-white dark:bg-barber-secondary shadow">
+            <div class="container mx-auto px-4">
+                <div class="flex items-center relative">
+                    <button class="tab-button py-4 px-4 sm:px-6 text-sm sm:text-base font-medium relative focus:outline-none text-barber-primary" data-tab="info">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Sobre
+                    </button>
+                    <button class="tab-button py-4 px-4 sm:px-6 text-sm sm:text-base font-medium relative focus:outline-none text-gray-600 dark:text-gray-300" data-tab="services">
+                        <i class="fas fa-cut mr-2"></i>
+                        Serviços
+                    </button>
+                    <button class="tab-button py-4 px-4 sm:px-6 text-sm sm:text-base font-medium relative focus:outline-none text-gray-600 dark:text-gray-300" data-tab="barbers">
+                        <i class="fas fa-user-tie mr-2"></i>
+                        Barbeiros
+                    </button>
+                    <button class="tab-button py-4 px-4 sm:px-6 text-sm sm:text-base font-medium relative focus:outline-none text-gray-600 dark:text-gray-300" data-tab="schedule">
+                        <i class="fas fa-calendar-alt mr-2"></i>
+                        Agendar
+                    </button>
+                    <button class="tab-button py-4 px-4 sm:px-6 text-sm sm:text-base font-medium relative focus:outline-none text-gray-600 dark:text-gray-300" data-tab="appointments">
+                        <i class="fas fa-clock mr-2"></i>
+                        Meus Horários
+                    </button>
+                    <div class="tab-indicator absolute bottom-0 left-0 h-1 bg-barber-primary transition-all"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Container -->
+        <main class="container mx-auto px-4 py-8">
+            <!-- Info Tab -->
+            <section id="infoTab" class="tab-content">
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6">Informações da Barbearia</h2>
+                    
+                    <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-8">
+                        <div class="flex flex-col md:flex-row md:items-center mb-6">
+                            <div class="flex-shrink-0 mb-4 md:mb-0 md:mr-6">
+                                <div class="w-24 h-24 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-cut text-3xl text-gray-400 dark:text-gray-500"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <h3 id="infoShopName" class="text-xl font-semibold mb-1">Carregando...</h3>
+                                <p id="infoShopDescription" class="text-gray-600 dark:text-gray-300 mb-4">Carregando...</p>
+                                <div class="flex flex-wrap gap-y-2">
+                                    <div class="w-full sm:w-1/2 flex items-center">
+                                        <i class="fas fa-map-marker-alt text-barber-primary mr-2"></i>
+                                        <span id="infoShopAddress" class="text-sm text-gray-600 dark:text-gray-300">Carregando...</span>
+                                    </div>
+                                    <div class="w-full sm:w-1/2 flex items-center">
+                                        <i class="fas fa-phone text-barber-primary mr-2"></i>
+                                        <span id="infoShopPhone" class="text-sm text-gray-600 dark:text-gray-300">Carregando...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-xl font-bold mb-4">Horário de Funcionamento</h3>
+                    <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-8">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="0">
+                                <div class="font-medium text-center mb-1">Domingo</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Fechado</div>
+                            </div>
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="1">
+                                <div class="font-medium text-center mb-1">Segunda</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Carregando...</div>
+                            </div>
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="2">
+                                <div class="font-medium text-center mb-1">Terça</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Carregando...</div>
+                            </div>
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="3">
+                                <div class="font-medium text-center mb-1">Quarta</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Carregando...</div>
+                            </div>
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="4">
+                                <div class="font-medium text-center mb-1">Quinta</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Carregando...</div>
+                            </div>
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="5">
+                                <div class="font-medium text-center mb-1">Sexta</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Carregando...</div>
+                            </div>
+                            <div class="business-hours p-3 border border-gray-200 dark:border-gray-700 rounded-md" data-day="6">
+                                <div class="font-medium text-center mb-1">Sábado</div>
+                                <div class="text-sm text-center text-gray-600 dark:text-gray-300 day-hours">Carregando...</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-xl font-bold mb-4">Como Agendar</h3>
+                    <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                        <div class="space-y-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0 flex items-center justify-center w-8 h-8 bg-barber-primary rounded-full text-white">
+                                    1
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="text-lg font-medium">Escolha um serviço</h4>
+                                    <p class="text-gray-600 dark:text-gray-300">Navegue pela nossa lista de serviços e escolha o que deseja agendar.</p>
+                                </div>
+                            </div>
+                            <div class="flex">
+                                <div class="flex-shrink-0 flex items-center justify-center w-8 h-8 bg-barber-primary rounded-full text-white">
+                                    2
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="text-lg font-medium">Selecione um barbeiro</h4>
+                                    <p class="text-gray-600 dark:text-gray-300">Escolha o profissional que irá realizar o serviço.</p>
+                                </div>
+                            </div>
+                            <div class="flex">
+                                <div class="flex-shrink-0 flex items-center justify-center w-8 h-8 bg-barber-primary rounded-full text-white">
+                                    3
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="text-lg font-medium">Escolha data e horário</h4>
+                                    <p class="text-gray-600 dark:text-gray-300">Selecione uma data disponível e um horário que seja conveniente para você.</p>
+                                </div>
+                            </div>
+                            <div class="flex">
+                                <div class="flex-shrink-0 flex items-center justify-center w-8 h-8 bg-barber-primary rounded-full text-white">
+                                    4
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="text-lg font-medium">Confirme seu agendamento</h4>
+                                    <p class="text-gray-600 dark:text-gray-300">Preencha seus dados e confirme o agendamento. Pronto!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Services Tab -->
+            <section id="servicesTab" class="tab-content hidden">
+                <div class="max-w-5xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6">Nossos Serviços</h2>
+                    <div id="servicesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="animate-pulse bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                            <div class="w-1/3 h-4 bg-gray-300 dark:bg-gray-700 mb-3"></div>
+                            <div class="w-1/2 h-6 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="w-full h-16 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="flex justify-between items-center">
+                                <div class="w-1/4 h-5 bg-gray-300 dark:bg-gray-700"></div>
+                                <div class="w-1/4 h-8 bg-barber-primary rounded-md"></div>
+                            </div>
+                        </div>
+                        <div class="animate-pulse bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                            <div class="w-1/3 h-4 bg-gray-300 dark:bg-gray-700 mb-3"></div>
+                            <div class="w-1/2 h-6 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="w-full h-16 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="flex justify-between items-center">
+                                <div class="w-1/4 h-5 bg-gray-300 dark:bg-gray-700"></div>
+                                <div class="w-1/4 h-8 bg-barber-primary rounded-md"></div>
+                            </div>
+                        </div>
+                        <div class="animate-pulse bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                            <div class="w-1/3 h-4 bg-gray-300 dark:bg-gray-700 mb-3"></div>
+                            <div class="w-1/2 h-6 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="w-full h-16 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="flex justify-between items-center">
+                                <div class="w-1/4 h-5 bg-gray-300 dark:bg-gray-700"></div>
+                                <div class="w-1/4 h-8 bg-barber-primary rounded-md"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Barbers Tab -->
+            <section id="barbersTab" class="tab-content hidden">
+                <div class="max-w-5xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6">Nossos Barbeiros</h2>
+                    <div id="barbersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="animate-pulse bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                            <div class="flex flex-col items-center mb-4">
+                                <div class="w-24 h-24 rounded-full bg-gray-300 dark:bg-gray-700 mb-3"></div>
+                                <div class="w-1/2 h-6 bg-gray-300 dark:bg-gray-700"></div>
+                            </div>
+                            <div class="w-full h-16 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="w-1/3 h-8 mx-auto bg-barber-primary rounded-md"></div>
+                        </div>
+                        <div class="animate-pulse bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                            <div class="flex flex-col items-center mb-4">
+                                <div class="w-24 h-24 rounded-full bg-gray-300 dark:bg-gray-700 mb-3"></div>
+                                <div class="w-1/2 h-6 bg-gray-300 dark:bg-gray-700"></div>
+                            </div>
+                            <div class="w-full h-16 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="w-1/3 h-8 mx-auto bg-barber-primary rounded-md"></div>
+                        </div>
+                        <div class="animate-pulse bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6">
+                            <div class="flex flex-col items-center mb-4">
+                                <div class="w-24 h-24 rounded-full bg-gray-300 dark:bg-gray-700 mb-3"></div>
+                                <div class="w-1/2 h-6 bg-gray-300 dark:bg-gray-700"></div>
+                            </div>
+                            <div class="w-full h-16 bg-gray-300 dark:bg-gray-700 mb-4"></div>
+                            <div class="w-1/3 h-8 mx-auto bg-barber-primary rounded-md"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Schedule Tab -->
+            <section id="scheduleTab" class="tab-content hidden">
+                <div class="max-w-5xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6">Agendar Serviço</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2">
+                            <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-6">
+                                <h3 class="text-xl font-semibold mb-4">1. Selecione um serviço</h3>
+                                <div class="space-y-3 max-h-64 overflow-y-auto pr-2" id="scheduleServicesList">
+                                    <div class="animate-pulse">
+                                        <div class="h-12 bg-gray-300 dark:bg-gray-700 rounded-md mb-3"></div>
+                                        <div class="h-12 bg-gray-300 dark:bg-gray-700 rounded-md mb-3"></div>
+                                        <div class="h-12 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-6">
+                                <h3 class="text-xl font-semibold mb-4">2. Selecione um barbeiro</h3>
+                                <div class="space-y-3" id="scheduleBarbersList">
+                                    <div class="animate-pulse">
+                                        <div class="h-16 bg-gray-300 dark:bg-gray-700 rounded-md mb-3"></div>
+                                        <div class="h-16 bg-gray-300 dark:bg-gray-700 rounded-md mb-3"></div>
+                                        <div class="h-16 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-6">
+                                <h3 class="text-xl font-semibold mb-4">3. Selecione uma data</h3>
+                                <div class="mb-6">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <button id="prevMonthBtn" class="text-barber-primary hover:text-opacity-80 focus:outline-none">
+                                            <i class="fas fa-chevron-left"></i>
+                                        </button>
+                                        <h4 id="currentMonthYear" class="text-lg font-medium">Carregando...</h4>
+                                        <button id="nextMonthBtn" class="text-barber-primary hover:text-opacity-80 focus:outline-none">
+                                            <i class="fas fa-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-7 gap-1 text-center text-sm mb-2">
+                                        <div>Dom</div>
+                                        <div>Seg</div>
+                                        <div>Ter</div>
+                                        <div>Qua</div>
+                                        <div>Qui</div>
+                                        <div>Sex</div>
+                                        <div>Sáb</div>
+                                    </div>
+                                    
+                                    <div id="calendarDays" class="grid grid-cols-7 gap-1">
+                                        <!-- Calendar days will be populated here -->
+                                        <div class="animate-pulse">
+                                            <div class="grid grid-cols-7 gap-1">
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            </div>
+                                            <div class="grid grid-cols-7 gap-1 mt-1">
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                                <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-6">
+                                <h3 class="text-xl font-semibold mb-4">4. Selecione um horário</h3>
+                                <div id="timeSlotsList" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                    <div class="animate-pulse">
+                                        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                            <div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="noTimeSlotsMessage" class="text-center text-gray-500 dark:text-gray-400 py-4 hidden">
+                                    Nenhum horário disponível para a data selecionada.
+                                </div>
+                                <div id="selectDateMessage" class="text-center text-gray-500 dark:text-gray-400 py-4">
+                                    Por favor, selecione uma data para ver os horários disponíveis.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 sticky top-6">
+                                <h3 class="text-xl font-semibold mb-4">Resumo do Agendamento</h3>
+                                
+                                <div class="space-y-4 mb-6">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Serviço</p>
+                                        <p id="summaryService" class="font-medium">-</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Barbeiro</p>
+                                        <p id="summaryBarber" class="font-medium">-</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Data</p>
+                                        <p id="summaryDate" class="font-medium">-</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Horário</p>
+                                        <p id="summaryTime" class="font-medium">-</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Duração</p>
+                                        <p id="summaryDuration" class="font-medium">-</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Preço</p>
+                                        <p id="summaryPrice" class="font-semibold text-barber-primary">-</p>
+                                    </div>
+                                </div>
+                                
+                                <h4 class="font-medium mb-3">Seus Dados</h4>
+                                <form id="appointmentForm" class="space-y-4">
+                                    <div>
+                                        <label for="clientName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Nome completo
+                                        </label>
+                                        <input type="text" id="clientName" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-barber-primary focus:border-barber-primary text-base dark:bg-gray-800" required="">
+                                    </div>
+                                    <div>
+                                        <label for="clientPhone" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Telefone
+                                        </label>
+                                        <input type="tel" id="clientPhone" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-barber-primary focus:border-barber-primary text-base dark:bg-gray-800" required="">
+                                    </div>
+                                    <div>
+                                        <label for="clientEmail" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Email (opcional)
+                                        </label>
+                                        <input type="email" id="clientEmail" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-barber-primary focus:border-barber-primary text-base dark:bg-gray-800">
+                                    </div>
+                                    <div>
+                                        <label for="clientNotes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Observações (opcional)
+                                        </label>
+                                        <textarea id="clientNotes" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-barber-primary focus:border-barber-primary text-base dark:bg-gray-800"></textarea>
+                                    </div>
+                                    <button type="submit" id="confirmAppointmentBtn" class="w-full py-3 px-4 bg-barber-primary text-white rounded-md font-medium shadow-md hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-barber-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                                        Confirmar Agendamento
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- My Appointments Tab -->
+            <section id="appointmentsTab" class="tab-content hidden">
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Meus Agendamentos</h2>
+                        <div>
+                            <button id="refreshAppointmentsBtn" class="flex items-center py-2 px-4 bg-barber-primary bg-opacity-10 text-barber-primary rounded-md hover:bg-opacity-20 focus:outline-none">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Atualizar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="appointmentSearchForm" class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6 mb-6">
+                        <h3 class="text-lg font-semibold mb-4">Buscar Agendamentos</h3>
+                        <form id="searchForm" class="space-y-4 md:space-y-0 md:flex md:items-end md:space-x-4">
+                            <div class="flex-1">
+                                <label for="searchPhone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Telefone
+                                </label>
+                                <input type="tel" id="searchPhone" placeholder="Digite seu telefone" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-barber-primary focus:border-barber-primary text-base dark:bg-gray-800">
+                            </div>
+                            <button type="submit" class="w-full md:w-auto py-2 px-4 bg-barber-primary text-white rounded-md font-medium shadow-md hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-barber-primary">
+                                <i class="fas fa-search mr-2"></i>
+                                Buscar
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div id="noAppointmentsMessage" class="bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-8 text-center">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+                            <i class="fas fa-calendar-day text-2xl text-gray-400 dark:text-gray-500"></i>
+                        </div>
+                        <h3 class="text-lg font-medium mb-2">Nenhum agendamento encontrado</h3>
+                        <p class="text-gray-500 dark:text-gray-400 mb-4">Digite seu número de telefone para buscar seus agendamentos.</p>
+                        <button id="goToScheduleBtn" class="py-2 px-4 bg-barber-primary text-white rounded-md font-medium shadow-md hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-barber-primary">
+                            Fazer um Agendamento
+                        </button>
+                    </div>
+                    
+                    <div id="appointmentsList" class="space-y-4 hidden">
+                        <!-- Appointments will be populated here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="mt-12 py-8 bg-barber-secondary text-white">
+            <div class="container mx-auto px-4">
+                <div class="flex flex-col md:flex-row justify-between">
+                    <div class="mb-6 md:mb-0">
+                        <h3 id="footerShopName" class="text-xl font-bold mb-2">Barbearia</h3>
+                        <p id="footerShopAddress" class="text-gray-300 mb-2">Carregando...</p>
+                        <p id="footerShopPhone" class="text-gray-300">Carregando...</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-8 md:grid-cols-3">
+                        <div>
+                            <h4 class="text-lg font-semibold mb-3">Navegação</h4>
+                            <ul class="space-y-2">
+                                <li><a href="#" class="text-gray-300 hover:text-white" data-tab-link="info">Sobre</a></li>
+                                <li><a href="#" class="text-gray-300 hover:text-white" data-tab-link="services">Serviços</a></li>
+                                <li><a href="#" class="text-gray-300 hover:text-white" data-tab-link="barbers">Barbeiros</a></li>
+                                <li><a href="#" class="text-gray-300 hover:text-white" data-tab-link="schedule">Agendar</a></li>
+                                <li><a href="#" class="text-gray-300 hover:text-white" data-tab-link="appointments">Meus Horários</a></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold mb-3">Horário</h4>
+                            <div id="footerHours" class="text-gray-300 space-y-1">
+                                <p>Segunda a Sexta: 9h às 19h</p>
+                                <p>Sábado: 9h às 18h</p>
+                                <p>Domingo: Fechado</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold mb-3">Redes Sociais</h4>
+                            <div class="flex space-x-4">
+                                <a href="#" class="text-gray-300 hover:text-white text-xl">
+                                    <i class="fab fa-facebook"></i>
+                                </a>
+                                <a href="#" class="text-gray-300 hover:text-white text-xl">
+                                    <i class="fab fa-instagram"></i>
+                                </a>
+                                <a href="#" class="text-gray-300 hover:text-white text-xl">
+                                    <i class="fab fa-whatsapp"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-8 pt-8 border-t border-gray-700 text-center text-gray-400 text-sm">
+                    <p>© <span id="currentYear"></span> <span id="copyrightShopName">Barbearia</span>. Todos os direitos reservados.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="absolute inset-0 bg-black opacity-50"></div>
+        <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-xl max-w-md w-full mx-4 z-10 overflow-hidden">
+            <div class="bg-green-500 text-white p-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold">Agendamento Confirmado!</h3>
+                <button id="closeSuccessModalBtn" class="text-white focus:outline-none">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="flex flex-col items-center mb-6">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-check text-2xl text-green-500"></i>
+                    </div>
+                    <h4 class="text-lg font-semibold text-center">Seu agendamento foi realizado com sucesso!</h4>
+                </div>
+                
+                <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-6">
+                    <h5 class="font-medium mb-2">Detalhes do agendamento:</h5>
+                    <div class="space-y-2 text-sm">
+                        <p><span class="font-medium">Serviço:</span> <span id="modalService"></span></p>
+                        <p><span class="font-medium">Barbeiro:</span> <span id="modalBarber"></span></p>
+                        <p><span class="font-medium">Data:</span> <span id="modalDate"></span></p>
+                        <p><span class="font-medium">Horário:</span> <span id="modalTime"></span></p>
+                        <p><span class="font-medium">Cliente:</span> <span id="modalName"></span></p>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-gray-600 dark:text-gray-300 mb-4">Anote o código do seu agendamento:</p>
+                    <div class="font-mono text-xl bg-gray-100 dark:bg-gray-700 py-2 px-4 rounded-md inline-block mb-4" id="modalAppointmentId">ABC123</div>
+                    <div class="space-y-3">
+                        <button id="viewAppointmentsBtn" class="w-full py-2 px-4 bg-barber-primary text-white rounded-md font-medium shadow-md hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-barber-primary">
+                            Ver Meus Agendamentos
+                        </button>
+                        <button id="newAppointmentBtn" class="w-full py-2 px-4 border border-barber-primary text-barber-primary rounded-md font-medium hover:bg-barber-primary hover:bg-opacity-10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-barber-primary">
+                            Fazer Novo Agendamento
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cancel Confirmation Modal -->
+    <div id="cancelModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="absolute inset-0 bg-black opacity-50"></div>
+        <div class="bg-white dark:bg-barber-secondary rounded-lg shadow-xl max-w-md w-full mx-4 z-10">
+            <div class="bg-red-500 text-white p-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold">Cancelar Agendamento</h3>
+                <button id="closeCancelModalBtn" class="text-white focus:outline-none">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <p class="mb-4">Tem certeza que deseja cancelar este agendamento?</p>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">Esta ação não pode ser desfeita.</p>
+                
+                <input type="hidden" id="cancelAppointmentId">
+                
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelNoBtn" class="py-2 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        Não, manter
+                    </button>
+                    <button id="cancelYesBtn" class="py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        Sim, cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transform transition-transform duration-300 ease-in-out translate-y-24 z-50 flex items-center">
+        <i id="toastIcon" class="mr-2"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCupq_0sIIA3zVLNuiZwTbTmiEx6xZ0JVg",
+            authDomain: "agenda-11070.firebaseapp.com",
+            projectId: "agenda-11070",
+            storageBucket: "agenda-11070.firebasestorage.app",
+            messagingSenderId: "188507443846",
+            appId: "1:188507443846:web:8fccf0822afcd5d9f27707",
+            measurementId: "G-7XR3WGWV5P"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // Dark Mode Detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Global state
+        const state = {
+            services: [],
+            barbers: [],
+            appointments: [],
+            schedule: {
+                openingTime: { hour: 9, minute: 0 },
+                closingTime: { hour: 18, minute: 0 },
+                timeSlotDuration: 30,
+                workingDays: [1, 2, 3, 4, 5, 6] // 0 = Sunday, 1 = Monday, etc.
+            },
+            shopInfo: {
+                name: 'Barbearia',
+                description: '',
+                address: '',
+                phone: '',
+                coverImageUrl: ''
+            },
+            selectedService: null,
+            selectedBarber: null,
+            selectedDate: null,
+            selectedTime: null,
+            currentMonth: new Date().getMonth(),
+            currentYear: new Date().getFullYear(),
+            currentTab: 'info',
+            userAppointments: [],
+            searchPhone: '',
+            user: null,
+            isLoggedIn: false,
+            isGuest: false
+        };
+
+        // DOM Elements
+        const elements = {
+            // Login
+            loginScreen: document.getElementById('loginScreen'),
+            googleLoginBtn: document.getElementById('googleLoginBtn'),
+            guestLoginBtn: document.getElementById('guestLoginBtn'),
+            userProfileBtn: document.getElementById('userProfileBtn'),
+            userAvatar: document.getElementById('userAvatar'),
+            userDropdown: document.getElementById('userDropdown'),
+            userEmail: document.getElementById('userEmail'),
+            logoutBtn: document.getElementById('logoutBtn'),
+            
+            // Main app
+            app: document.getElementById('app'),
+            loading: document.getElementById('loading'),
+            
+            // Shop Info
+            shopHero: document.getElementById('shopHero'),
+            shopName: document.getElementById('shopName'),
+            shopDescription: document.getElementById('shopDescription'),
+            infoShopName: document.getElementById('infoShopName'),
+            infoShopDescription: document.getElementById('infoShopDescription'),
+            infoShopAddress: document.getElementById('infoShopAddress'),
+            infoShopPhone: document.getElementById('infoShopPhone'),
+            footerShopName: document.getElementById('footerShopName'),
+            footerShopAddress: document.getElementById('footerShopAddress'),
+            footerShopPhone: document.getElementById('footerShopPhone'),
+            copyrightShopName: document.getElementById('copyrightShopName'),
+            currentYear: document.getElementById('currentYear'),
+            footerHours: document.getElementById('footerHours'),
+            businessHours: document.querySelectorAll('.business-hours'),
+            
+            // Tabs
+            tabButtons: document.querySelectorAll('.tab-button'),
+            tabIndicator: document.querySelector('.tab-indicator'),
+            tabContents: document.querySelectorAll('.tab-content'),
+            tabLinks: document.querySelectorAll('[data-tab-link]'),
+            
+            // Services
+            servicesList: document.getElementById('servicesList'),
+            
+            // Barbers
+            barbersList: document.getElementById('barbersList'),
+            
+            // Schedule
+            scheduleServicesList: document.getElementById('scheduleServicesList'),
+            scheduleBarbersList: document.getElementById('scheduleBarbersList'),
+            prevMonthBtn: document.getElementById('prevMonthBtn'),
+            nextMonthBtn: document.getElementById('nextMonthBtn'),
+            currentMonthYear: document.getElementById('currentMonthYear'),
+            calendarDays: document.getElementById('calendarDays'),
+            timeSlotsList: document.getElementById('timeSlotsList'),
+            noTimeSlotsMessage: document.getElementById('noTimeSlotsMessage'),
+            selectDateMessage: document.getElementById('selectDateMessage'),
+            summaryService: document.getElementById('summaryService'),
+            summaryBarber: document.getElementById('summaryBarber'),
+            summaryDate: document.getElementById('summaryDate'),
+            summaryTime: document.getElementById('summaryTime'),
+            summaryDuration: document.getElementById('summaryDuration'),
+            summaryPrice: document.getElementById('summaryPrice'),
+            appointmentForm: document.getElementById('appointmentForm'),
+            clientName: document.getElementById('clientName'),
+            clientPhone: document.getElementById('clientPhone'),
+            clientEmail: document.getElementById('clientEmail'),
+            clientNotes: document.getElementById('clientNotes'),
+            confirmAppointmentBtn: document.getElementById('confirmAppointmentBtn'),
+            
+            // Appointments
+            searchForm: document.getElementById('searchForm'),
+            searchPhone: document.getElementById('searchPhone'),
+            appointmentsList: document.getElementById('appointmentsList'),
+            noAppointmentsMessage: document.getElementById('noAppointmentsMessage'),
+            refreshAppointmentsBtn: document.getElementById('refreshAppointmentsBtn'),
+            goToScheduleBtn: document.getElementById('goToScheduleBtn'),
+            
+            // Success Modal
+            successModal: document.getElementById('successModal'),
+            closeSuccessModalBtn: document.getElementById('closeSuccessModalBtn'),
+            modalService: document.getElementById('modalService'),
+            modalBarber: document.getElementById('modalBarber'),
+            modalDate: document.getElementById('modalDate'),
+            modalTime: document.getElementById('modalTime'),
+            modalName: document.getElementById('modalName'),
+            modalAppointmentId: document.getElementById('modalAppointmentId'),
+            viewAppointmentsBtn: document.getElementById('viewAppointmentsBtn'),
+            newAppointmentBtn: document.getElementById('newAppointmentBtn'),
+            
+            // Cancel Modal
+            cancelModal: document.getElementById('cancelModal'),
+            closeCancelModalBtn: document.getElementById('closeCancelModalBtn'),
+            cancelAppointmentId: document.getElementById('cancelAppointmentId'),
+            cancelNoBtn: document.getElementById('cancelNoBtn'),
+            cancelYesBtn: document.getElementById('cancelYesBtn'),
+            
+            // Toast
+            toast: document.getElementById('toast'),
+            toastMessage: document.getElementById('toastMessage'),
+            toastIcon: document.getElementById('toastIcon')
+        };
+
+        // Utility functions
+        const utils = {
+            formatDate: (date) => {
+                const options = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
+                return new Date(date).toLocaleDateString('pt-BR', options);
+            },
+            
+            formatShortDate: (date) => {
+                const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
+                return new Date(date).toLocaleDateString('pt-BR', options);
+            },
+            
+            formatTime: (date) => {
+                const options = { hour: '2-digit', minute: '2-digit' };
+                return new Date(date).toLocaleTimeString('pt-BR', options);
+            },
+            
+            formatCurrency: (value) => {
+                return new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                }).format(value);
+            },
+            
+            formatDuration: (minutes) => {
+                if (minutes < 60) {
+                    return `${minutes} min`;
+                } else {
+                    const hours = Math.floor(minutes / 60);
+                    const remainingMinutes = minutes % 60;
+                    if (remainingMinutes === 0) {
+                        return `${hours}h`;
+                    } else {
+                        return `${hours}h ${remainingMinutes}min`;
+                    }
+                }
+            },
+            
+            showLoading: () => {
+                elements.loading.classList.remove('hidden');
+            },
+            
+            hideLoading: () => {
+                elements.loading.classList.add('hidden');
+            },
+            
+            showToast: (message, type = 'success') => {
+                const toast = elements.toast;
+                const toastMessage = elements.toastMessage;
+                const toastIcon = elements.toastIcon;
+                
+                toastMessage.textContent = message;
+                
+                // Set icon and color based on type
+                if (type === 'success') {
+                    toast.className = 'fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transform transition-transform duration-300 ease-in-out z-50 flex items-center bg-green-500 text-white';
+                    toastIcon.className = 'fas fa-check-circle mr-2';
+                } else if (type === 'error') {
+                    toast.className = 'fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transform transition-transform duration-300 ease-in-out z-50 flex items-center bg-red-500 text-white';
+                    toastIcon.className = 'fas fa-exclamation-circle mr-2';
+                } else if (type === 'info') {
+                    toast.className = 'fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transform transition-transform duration-300 ease-in-out z-50 flex items-center bg-blue-500 text-white';
+                    toastIcon.className = 'fas fa-info-circle mr-2';
+                }
+                
+                // Show the toast
+                setTimeout(() => {
+                    toast.classList.remove('translate-y-24');
+                }, 100);
+                
+                // Hide after 3 seconds
+                setTimeout(() => {
+                    toast.classList.add('translate-y-24');
+                }, 3000);
+            },
+            
+            generateTimeSlots: (date) => {
+                const { openingTime, closingTime, timeSlotDuration, workingDays } = state.schedule;
+                
+                // Check if the day is a working day
+                const dayOfWeek = date.getDay();
+                if (!workingDays.includes(dayOfWeek)) {
+                    return [];
+                }
+                
+                const slots = [];
+                const startTime = new Date(date);
+                startTime.setHours(openingTime.hour, openingTime.minute, 0, 0);
+                
+                const endTime = new Date(date);
+                endTime.setHours(closingTime.hour, closingTime.minute, 0, 0);
+                
+                let currentTime = new Date(startTime);
+                
+                while (currentTime < endTime) {
+                    slots.push(new Date(currentTime));
+                    currentTime.setMinutes(currentTime.getMinutes() + timeSlotDuration);
+                }
+                
+                return slots;
+            },
+            
+            isTimeSlotAvailable: (date, barberId, serviceDuration = 30) => {
+                const endTime = new Date(date);
+                endTime.setMinutes(endTime.getMinutes() + serviceDuration);
+                
+                return !state.appointments.some(appointment => {
+                    if (appointment.barberId !== barberId) return false;
+                    
+                    const appointmentDate = appointment.date.toDate();
+                    const appointmentEndTime = new Date(appointmentDate);
+                    appointmentEndTime.setMinutes(appointmentEndTime.getMinutes() + appointment.serviceDuration);
+                    
+                    // Check for overlap
+                    return (
+                        (date >= appointmentDate && date < appointmentEndTime) ||
+                        (endTime > appointmentDate && endTime <= appointmentEndTime) ||
+                        (date <= appointmentDate && endTime >= appointmentEndTime)
+                    );
+                });
+            },
+            
+            formatPhoneNumber: (phone) => {
+                // Remove non-digits
+                phone = phone.replace(/\D/g, '');
+                
+                // Format the phone number based on length
+                if (phone.length === 11) {
+                    // Format as (XX) XXXXX-XXXX (Brazilian mobile)
+                    return `(${phone.substring(0, 2)}) ${phone.substring(2, 7)}-${phone.substring(7)}`;
+                } else if (phone.length === 10) {
+                    // Format as (XX) XXXX-XXXX (Brazilian landline)
+                    return `(${phone.substring(0, 2)}) ${phone.substring(2, 6)}-${phone.substring(6)}`;
+                } else {
+                    // Return as is if not a standard format
+                    return phone;
+                }
+            },
+            
+            normalizePhoneNumber: (phone) => {
+                // Remove all non-digit characters
+                return phone.replace(/\D/g, '');
+            },
+            
+            generateShortId: () => {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let id = '';
+                for (let i = 0; i < 6; i++) {
+                    id += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return id;
+            },
+            
+            // LocalStorage functions for appointments
+            saveAppointmentsToLocalStorage: (appointments) => {
+                try {
+                    localStorage.setItem('barberAppointments', JSON.stringify(appointments));
+                } catch (e) {
+                    console.error('Error saving to localStorage:', e);
+                }
+            },
+            
+            getAppointmentsFromLocalStorage: () => {
+                try {
+                    const appointments = localStorage.getItem('barberAppointments');
+                    return appointments ? JSON.parse(appointments) : [];
+                } catch (e) {
+                    console.error('Error getting from localStorage:', e);
+                    return [];
+                }
+            },
+            
+            // User data in localStorage
+            saveUserToLocalStorage: (user) => {
+                try {
+                    const userData = {
+                        uid: user.uid,
+                        displayName: user.displayName,
+                        email: user.email,
+                        photoURL: user.photoURL
+                    };
+                    localStorage.setItem('barberUser', JSON.stringify(userData));
+                } catch (e) {
+                    console.error('Error saving user to localStorage:', e);
+                }
+            },
+            
+            getUserFromLocalStorage: () => {
+                try {
+                    const user = localStorage.getItem('barberUser');
+                    return user ? JSON.parse(user) : null;
+                } catch (e) {
+                    console.error('Error getting user from localStorage:', e);
+                    return null;
+                }
+            },
+            
+            clearUserFromLocalStorage: () => {
+                try {
+                    localStorage.removeItem('barberUser');
+                    localStorage.removeItem('barberGuestMode');
+                } catch (e) {
+                    console.error('Error clearing user from localStorage:', e);
+                }
+            },
+            
+            setGuestMode: (value) => {
+                try {
+                    localStorage.setItem('barberGuestMode', value ? 'true' : 'false');
+                } catch (e) {
+                    console.error('Error setting guest mode in localStorage:', e);
+                }
+            },
+            
+            isGuestMode: () => {
+                try {
+                    return localStorage.getItem('barberGuestMode') === 'true';
+                } catch (e) {
+                    console.error('Error getting guest mode from localStorage:', e);
+                    return false;
+                }
+            }
+        };
+
+        // Auth Functions
+        const authFunctions = {
+            initAuth: () => {
+                // Check if user is already logged in
+                auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        state.user = user;
+                        state.isLoggedIn = true;
+                        state.isGuest = false;
+                        
+                        utils.saveUserToLocalStorage(user);
+                        utils.setGuestMode(false);
+                        
+                        authFunctions.updateUIOnLogin();
+                        
+                        // Load app data
+                        loadAppData();
+                    } else {
+                        // Check if guest mode is enabled
+                        if (utils.isGuestMode()) {
+                            state.isGuest = true;
+                            authFunctions.updateUIOnGuestLogin();
+                            loadAppData();
+                        } else {
+                            // Show login screen
+                            elements.loginScreen.classList.remove('hidden');
+                            elements.app.classList.add('hidden');
+                            utils.hideLoading();
+                        }
+                    }
+                });
+            },
+            
+            googleLogin: () => {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                utils.showLoading();
+                
+                auth.signInWithPopup(provider)
+                    .then((result) => {
+                        state.user = result.user;
+                        state.isLoggedIn = true;
+                        state.isGuest = false;
+                        
+                        utils.saveUserToLocalStorage(result.user);
+                        utils.setGuestMode(false);
+                        
+                        elements.loginScreen.classList.add('hidden');
+                        elements.app.classList.remove('hidden');
+                        
+                        authFunctions.updateUIOnLogin();
+                        
+                        utils.showToast('Login realizado com sucesso!', 'success');
+                    })
+                    .catch((error) => {
+                        console.error('Error signing in with Google:', error);
+                        utils.hideLoading();
+                        utils.showToast('Erro ao fazer login com Google', 'error');
+                    });
+            },
+            
+            guestLogin: () => {
+                state.isGuest = true;
+                state.isLoggedIn = false;
+                state.user = null;
+                
+                utils.setGuestMode(true);
+                utils.clearUserFromLocalStorage();
+                
+                elements.loginScreen.classList.add('hidden');
+                elements.app.classList.remove('hidden');
+                
+                authFunctions.updateUIOnGuestLogin();
+                
+                // Load app data
+                loadAppData();
+            },
+            
+            logout: () => {
+                utils.showLoading();
+                
+                auth.signOut()
+                    .then(() => {
+                        state.user = null;
+                        state.isLoggedIn = false;
+                        state.isGuest = false;
+                        
+                        utils.clearUserFromLocalStorage();
+                        utils.setGuestMode(false);
+                        
+                        elements.loginScreen.classList.remove('hidden');
+                        elements.app.classList.add('hidden');
+                        elements.userDropdown.classList.add('hidden');
+                        
+                        utils.hideLoading();
+                        utils.showToast('Logout realizado com sucesso', 'info');
+                    })
+                    .catch((error) => {
+                        console.error('Error signing out:', error);
+                        utils.hideLoading();
+                        utils.showToast('Erro ao fazer logout', 'error');
+                    });
+            },
+            
+            updateUIOnLogin: () => {
+                // Update UI with user info
+                elements.userProfileBtn.classList.remove('hidden');
+                
+                if (state.user.photoURL) {
+                    elements.userAvatar.src = state.user.photoURL;
+                } else {
+                    elements.userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(state.user.displayName || state.user.email)}&background=random`;
+                }
+                
+                elements.userEmail.textContent = state.user.email;
+                
+                // Populate client info in the form if available
+                if (state.user.displayName) {
+                    elements.clientName.value = state.user.displayName;
+                }
+                
+                if (state.user.email) {
+                    elements.clientEmail.value = state.user.email;
+                }
+            },
+            
+            updateUIOnGuestLogin: () => {
+                elements.userProfileBtn.classList.add('hidden');
+            },
+            
+            toggleUserDropdown: () => {
+                elements.userDropdown.classList.toggle('hidden');
+            }
+        };
+
+        // Load application data
+        const loadAppData = async () => {
+            utils.showLoading();
+            
+            try {
+                await Promise.all([
+                    loadShopInfo(),
+                    loadServices(),
+                    loadBarbers(),
+                    loadSchedule(),
+                    loadAppointments()
+                ]);
+                
+                // Set current year in footer
+                elements.currentYear.textContent = new Date().getFullYear();
+                
+                utils.hideLoading();
+            } catch (error) {
+                console.error('Error loading app data:', error);
+                utils.hideLoading();
+                utils.showToast('Erro ao carregar dados do aplicativo', 'error');
+            }
+        };
+
+        // Load shop information
+        const loadShopInfo = async () => {
+            try {
+                const doc = await db.collection('shopInfo').doc('info').get();
+                
+                if (doc.exists) {
+                    state.shopInfo = doc.data();
+                    
+                    // Update UI with shop info
+                    elements.shopName.textContent = state.shopInfo.name;
+                    elements.shopDescription.textContent = state.shopInfo.description || 'A melhor barbearia da cidade!';
+                    elements.infoShopName.textContent = state.shopInfo.name;
+                    elements.infoShopDescription.textContent = state.shopInfo.description || 'A melhor barbearia da cidade!';
+                    elements.infoShopAddress.textContent = state.shopInfo.address || 'Endereço não informado';
+                    elements.infoShopPhone.textContent = state.shopInfo.phone || 'Telefone não informado';
+                    elements.footerShopName.textContent = state.shopInfo.name;
+                    elements.footerShopAddress.textContent = state.shopInfo.address || 'Endereço não informado';
+                    elements.footerShopPhone.textContent = state.shopInfo.phone || 'Telefone não informado';
+                    elements.copyrightShopName.textContent = state.shopInfo.name;
+                    
+                    // Set hero background
+                    if (state.shopInfo.coverImageUrl) {
+                        elements.shopHero.style.backgroundImage = `url('${state.shopInfo.coverImageUrl}')`;
+                    } else {
+                        // Default background if no cover image is set
+                        elements.shopHero.style.backgroundImage = "url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80')";
+                    }
+                    
+                    // Set title
+                    document.title = `${state.shopInfo.name} - Agendamento`;
+                }
+            } catch (error) {
+                console.error('Error loading shop info:', error);
+                throw error;
+            }
+        };
+
+        // Load services
+        const loadServices = async () => {
+            try {
+                const snapshot = await db.collection('services').get();
+                state.services = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                renderServices();
+                renderScheduleServices();
+            } catch (error) {
+                console.error('Error loading services:', error);
+                throw error;
+            }
+        };
+
+        // Load barbers
+        const loadBarbers = async () => {
+            try {
+                const snapshot = await db.collection('barbers').get();
+                state.barbers = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                renderBarbers();
+            } catch (error) {
+                console.error('Error loading barbers:', error);
+                throw error;
+            }
+        };
+
+        // Load schedule
+        const loadSchedule = async () => {
+            try {
+                const doc = await db.collection('schedule').doc('config').get();
+                
+                if (doc.exists) {
+                    state.schedule = doc.data();
+                    
+                    // Update business hours display
+                    updateBusinessHours();
+                    
+                    // Update footer hours
+                    updateFooterHours();
+                }
+            } catch (error) {
+                console.error('Error loading schedule:', error);
+                throw error;
+            }
+        };
+
+        // Load appointments
+        const loadAppointments = async () => {
+            try {
+                // Get start of current month
+                const startOfMonth = new Date(state.currentYear, state.currentMonth, 1);
+                startOfMonth.setHours(0, 0, 0, 0);
+                
+                // Get end of current month
+                const endOfMonth = new Date(state.currentYear, state.currentMonth + 1, 0);
+                endOfMonth.setHours(23, 59, 59, 999);
+                
+                // Query appointments for the current month
+                const snapshot = await db.collection('appointments')
+                    .where('date', '>=', startOfMonth)
+                    .where('date', '<=', endOfMonth)
+                    .get();
+                
+                state.appointments = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Check for user's appointments in both Firestore and localStorage
+                await loadUserAppointments();
+                
+                // Auto-fill phone number if user is logged in
+                if (state.isLoggedIn && state.user.phoneNumber) {
+                    elements.searchPhone.value = state.user.phoneNumber;
+                }
+                
+                // Update calendar with booked slots
+                renderCalendar();
+            } catch (error) {
+                console.error('Error loading appointments:', error);
+                throw error;
+            }
+        };
+
+        // Load user appointments
+        const loadUserAppointments = async () => {
+            try {
+                state.userAppointments = [];
+                
+                // First, try to get appointments from localStorage
+                const localAppointments = utils.getAppointmentsFromLocalStorage();
+                
+                // If the user is logged in, query by userID
+                if (state.isLoggedIn && state.user) {
+                    const userSnapshot = await db.collection('appointments')
+                        .where('userId', '==', state.user.uid)
+                        .get();
+                    
+                    // Add Firebase appointments
+                    userSnapshot.docs.forEach(doc => {
+                        const appointment = {
+                            id: doc.id,
+                            ...doc.data(),
+                            source: 'firebase'
+                        };
+                        
+                        // Convert Firestore timestamp to JS Date
+                        if (appointment.date && typeof appointment.date.toDate === 'function') {
+                            appointment.date = appointment.date.toDate();
+                        }
+                        
+                        state.userAppointments.push(appointment);
+                    });
+                } 
+                
+                // Handle appointments from localStorage 
+                if (localAppointments && localAppointments.length > 0) {
+                    localAppointments.forEach(appointment => {
+                        // Convert date string to Date object
+                        if (appointment.date && typeof appointment.date === 'string') {
+                            appointment.date = new Date(appointment.date);
+                        }
+                        
+                        // Add source information
+                        appointment.source = 'local';
+                        
+                        // Only add if the appointment is not already in the array
+                        if (!state.userAppointments.some(a => a.id === appointment.id)) {
+                            state.userAppointments.push(appointment);
+                        }
+                    });
+                }
+                
+                // Sort appointments by date (newest first)
+                state.userAppointments.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Check if we need to render appointments
+                if (state.currentTab === 'appointments') {
+                    renderUserAppointments();
+                }
+            } catch (error) {
+                console.error('Error loading user appointments:', error);
+                utils.showToast('Erro ao carregar seus agendamentos', 'error');
+            }
+        };
+
+        // Render services
+        const renderServices = () => {
+            const servicesList = elements.servicesList;
+            
+            if (state.services.length === 0) {
+                servicesList.innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <p class="text-gray-500 dark:text-gray-400">Nenhum serviço encontrado.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            servicesList.innerHTML = '';
+            
+            state.services.forEach(service => {
+                const serviceCard = document.createElement('div');
+                serviceCard.className = 'service-card bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6';
+                
+                serviceCard.innerHTML = `
+                    <span class="inline-block px-2 py-1 text-xs font-medium bg-barber-primary bg-opacity-10 text-barber-primary rounded mb-2">
+                        ${utils.formatDuration(service.duration)}
+                    </span>
+                    <h3 class="text-xl font-semibold mb-2">${service.name}</h3>
+                    <p class="text-gray-600 dark:text-gray-300 mb-4">${service.description || ''}</p>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xl font-bold text-barber-primary">${utils.formatCurrency(service.price)}</span>
+                        <button class="schedule-service-btn py-2 px-4 bg-barber-primary text-white rounded-md font-medium shadow-md hover:bg-opacity-90 focus:outline-none" data-service-id="${service.id}">
+                            Agendar
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listener to the button
+                const scheduleButton = serviceCard.querySelector('.schedule-service-btn');
+                scheduleButton.addEventListener('click', () => {
+                    // Set active tab to schedule
+                    setActiveTab('schedule');
+                    
+                    // Select the service
+                    selectService(service.id);
+                    
+                    // Scroll to service selection
+                    document.getElementById('scheduleServicesList').scrollIntoView({ behavior: 'smooth' });
+                });
+                
+                servicesList.appendChild(serviceCard);
+            });
+        };
+
+        // Render barbers
+        const renderBarbers = () => {
+            const barbersList = elements.barbersList;
+            
+            if (state.barbers.length === 0) {
+                barbersList.innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <p class="text-gray-500 dark:text-gray-400">Nenhum barbeiro encontrado.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            barbersList.innerHTML = '';
+            
+            state.barbers.forEach(barber => {
+                const barberCard = document.createElement('div');
+                barberCard.className = 'barber-card bg-white dark:bg-barber-secondary rounded-lg shadow-lg p-6';
+                
+                barberCard.innerHTML = `
+                    <div class="flex flex-col items-center mb-4">
+                        <div class="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-4">
+                            ${barber.photoUrl ? 
+                                `<img src="${barber.photoUrl}" alt="${barber.name}" class="w-full h-full object-cover">` : 
+                                `<i class="fas fa-user-tie text-4xl text-gray-400 dark:text-gray-500 flex items-center justify-center h-full"></i>`
+                            }
+                        </div>
+                        <h3 class="text-xl font-semibold text-center">${barber.name}</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-300 text-center mb-6">${barber.bio || ''}</p>
+                    <button class="schedule-barber-btn w-full py-2 px-4 bg-barber-primary text-white rounded-md font-medium shadow-md hover:bg-opacity-90 focus:outline-none" data-barber-id="${barber.id}">
+                        Agendar com ${barber.name.split(' ')[0]}
+                    </button>
+                `;
+                
+                // Add event listener to the button
+                const scheduleButton = barberCard.querySelector('.schedule-barber-btn');
+                scheduleButton.addEventListener('click', () => {
+                    // Set active tab to schedule
+                    setActiveTab('schedule');
+                    
+                    // Select the barber
+                    setTimeout(() => {
+                        selectBarber(barber.id);
+                        document.getElementById('scheduleBarbersList').scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                });
+                
+                barbersList.appendChild(barberCard);
+            });
+        };
+
+        // Render services in schedule tab
+        const renderScheduleServices = () => {
+            const scheduleServicesList = elements.scheduleServicesList;
+            
+            if (state.services.length === 0) {
+                scheduleServicesList.innerHTML = `
+                    <div class="text-center py-4">
+                        <p class="text-gray-500 dark:text-gray-400">Nenhum serviço encontrado.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            scheduleServicesList.innerHTML = '';
+            
+            state.services.forEach(service => {
+                const serviceItem = document.createElement('div');
+                serviceItem.className = `
+                    flex justify-between items-center p-3 border border-gray-200 dark:border-gray-700 rounded-md
+                    ${state.selectedService === service.id ? 'bg-barber-primary bg-opacity-10 border-barber-primary' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}
+                    cursor-pointer transition-colors
+                `;
+                serviceItem.setAttribute('data-service-id', service.id);
+                
+                serviceItem.innerHTML = `
+                    <div class="flex-1">
+                        <h4 class="font-medium ${state.selectedService === service.id ? 'text-barber-primary' : ''}">${service.name}</h4>
+                        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-2 mt-1">
+                            <span>${utils.formatDuration(service.duration)}</span>
+                            <span>•</span>
+                            <span>${utils.formatCurrency(service.price)}</span>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        ${state.selectedService === service.id ? 
+                            '<i class="fas fa-check-circle text-barber-primary"></i>' : 
+                            '<i class="far fa-circle text-gray-400"></i>'
+                        }
+                    </div>
+                `;
+                
+                serviceItem.addEventListener('click', () => {
+                    selectService(service.id);
+                });
+                
+                scheduleServicesList.appendChild(serviceItem);
+            });
+        };
+
+        // Render barbers in schedule tab
+        const renderScheduleBarbers = () => {
+            const scheduleBarbersList = elements.scheduleBarbersList;
+            
+            if (state.barbers.length === 0) {
+                scheduleBarbersList.innerHTML = `
+                    <div class="text-center py-4">
+                        <p class="text-gray-500 dark:text-gray-400">Nenhum barbeiro encontrado.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            scheduleBarbersList.innerHTML = '';
+            
+            state.barbers.forEach(barber => {
+                const barberItem = document.createElement('div');
+                barberItem.className = `
+                    flex items-center p-3 border border-gray-200 dark:border-gray-700 rounded-md
+                    ${state.selectedBarber === barber.id ? 'bg-barber-primary bg-opacity-10 border-barber-primary' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}
+                    cursor-pointer transition-colors
+                `;
+                barberItem.setAttribute('data-barber-id', barber.id);
+                
+                barberItem.innerHTML = `
+                    <div class="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mr-4 flex-shrink-0">
+                        ${barber.photoUrl ? 
+                            `<img src="${barber.photoUrl}" alt="${barber.name}" class="w-full h-full object-cover">` : 
+                            `<i class="fas fa-user-tie text-xl text-gray-400 dark:text-gray-500 flex items-center justify-center h-full"></i>`
+                        }
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="font-medium ${state.selectedBarber === barber.id ? 'text-barber-primary' : ''}">${barber.name}</h4>
+                    </div>
+                    <div class="ml-4">
+                        ${state.selectedBarber === barber.id ? 
+                            '<i class="fas fa-check-circle text-barber-primary"></i>' : 
+                            '<i class="far fa-circle text-gray-400"></i>'
+                        }
+                    </div>
+                `;
+                
+                barberItem.addEventListener('click', () => {
+                    selectBarber(barber.id);
+                });
+                
+                scheduleBarbersList.appendChild(barberItem);
+            });
+        };
+
+        // Update business hours display
+        const updateBusinessHours = () => {
+            const { workingDays, openingTime, closingTime } = state.schedule;
+            
+            elements.businessHours.forEach(element => {
+                const day = Number(element.getAttribute('data-day'));
+                const dayHoursElement = element.querySelector('.day-hours');
+                
+                if (workingDays.includes(day)) {
+                    const openTime = `${openingTime.hour.toString().padStart(2, '0')}:${openingTime.minute.toString().padStart(2, '0')}`;
+                    const closeTime = `${closingTime.hour.toString().padStart(2, '0')}:${closingTime.minute.toString().padStart(2, '0')}`;
+                    dayHoursElement.textContent = `${openTime} - ${closeTime}`;
+                } else {
+                    dayHoursElement.textContent = 'Fechado';
+                }
+            });
+        };
+
+        // Update footer hours
+        const updateFooterHours = () => {
+            const { workingDays, openingTime, closingTime } = state.schedule;
+            const footerHours = elements.footerHours;
+            
+            // Clear existing content
+            footerHours.innerHTML = '';
+            
+            // Check if Monday to Friday are all working days with the same hours
+            const weekdaysWorkingDays = [1, 2, 3, 4, 5];
+            const allWeekdaysWork = weekdaysWorkingDays.every(day => workingDays.includes(day));
+            
+            if (allWeekdaysWork) {
+                const openTime = `${openingTime.hour}h`;
+                const closeTime = `${closingTime.hour}h`;
+                footerHours.innerHTML += `<p>Segunda a Sexta: ${openTime} às ${closeTime}</p>`;
+            } else {
+                // Add individual weekdays
+                const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                weekdaysWorkingDays.forEach(day => {
+                    if (workingDays.includes(day)) {
+                        const openTime = `${openingTime.hour}h`;
+                        const closeTime = `${closingTime.hour}h`;
+                        footerHours.innerHTML += `<p>${dayNames[day]}: ${openTime} às ${closeTime}</p>`;
+                    } else {
+                        footerHours.innerHTML += `<p>${dayNames[day]}: Fechado</p>`;
+                    }
+                });
+            }
+            
+            // Add Saturday
+            if (workingDays.includes(6)) {
+                const openTime = `${openingTime.hour}h`;
+                const closeTime = `${closingTime.hour}h`;
+                footerHours.innerHTML += `<p>Sábado: ${openTime} às ${closeTime}</p>`;
+            } else {
+                footerHours.innerHTML += `<p>Sábado: Fechado</p>`;
+            }
+            
+            // Add Sunday
+            if (workingDays.includes(0)) {
+                const openTime = `${openingTime.hour}h`;
+                const closeTime = `${closingTime.hour}h`;
+                footerHours.innerHTML += `<p>Domingo: ${openTime} às ${closeTime}</p>`;
+            } else {
+                footerHours.innerHTML += `<p>Domingo: Fechado</p>`;
+            }
+        };
+
+        // Select a service
+        const selectService = (serviceId) => {
+            state.selectedService = serviceId;
+            
+            // Update UI
+            renderScheduleServices();
+            renderScheduleBarbers();
+            
+            // Update summary
+            updateSummary();
+            
+            // Check if time slots need to be updated
+            if (state.selectedDate && state.selectedBarber) {
+                renderTimeSlots();
+            }
+        };
+
+        // Select a barber
+        const selectBarber = (barberId) => {
+            state.selectedBarber = barberId;
+            
+            // Update UI
+            renderScheduleBarbers();
+            
+            // Update summary
+            updateSummary();
+            
+            // Check if time slots need to be updated
+            if (state.selectedDate) {
+                renderTimeSlots();
+            }
+        };
+
+        // Select a date
+        const selectDate = (date) => {
+            state.selectedDate = date;
+            
+            // Update UI
+            renderCalendar();
+            
+            // Update summary
+            updateSummary();
+            
+            // Check if time slots need to be updated
+            if (state.selectedBarber) {
+                renderTimeSlots();
+            } else {
+                elements.selectDateMessage.classList.add('hidden');
+                elements.noTimeSlotsMessage.classList.remove('hidden');
+                elements.timeSlotsList.innerHTML = '';
+                elements.timeSlotsList.classList.add('hidden');
+            }
+        };
+
+        // Select a time slot
+        const selectTime = (time) => {
+            state.selectedTime = time;
+            
+            // Update UI
+            renderTimeSlots();
+            
+            // Update summary
+            updateSummary();
+        };
+
+        // Update booking summary
+        const updateSummary = () => {
+            // Service
+            if (state.selectedService) {
+                const service = state.services.find(s => s.id === state.selectedService);
+                if (service) {
+                    elements.summaryService.textContent = service.name;
+                    elements.summaryDuration.textContent = utils.formatDuration(service.duration);
+                    elements.summaryPrice.textContent = utils.formatCurrency(service.price);
+                }
+            } else {
+                elements.summaryService.textContent = '-';
+                elements.summaryDuration.textContent = '-';
+                elements.summaryPrice.textContent = '-';
+            }
+            
+            // Barber
+            if (state.selectedBarber) {
+                const barber = state.barbers.find(b => b.id === state.selectedBarber);
+                if (barber) {
+                    elements.summaryBarber.textContent = barber.name;
+                }
+            } else {
+                elements.summaryBarber.textContent = '-';
+            }
+            
+            // Date
+            if (state.selectedDate) {
+                elements.summaryDate.textContent = utils.formatDate(state.selectedDate);
+            } else {
+                elements.summaryDate.textContent = '-';
+            }
+            
+            // Time
+            if (state.selectedTime) {
+                elements.summaryTime.textContent = utils.formatTime(state.selectedTime);
+            } else {
+                elements.summaryTime.textContent = '-';
+            }
+            
+            // Check if booking can be confirmed
+            if (state.selectedService && state.selectedBarber && state.selectedDate && state.selectedTime) {
+                elements.confirmAppointmentBtn.disabled = false;
+            } else {
+                elements.confirmAppointmentBtn.disabled = true;
+            }
+        };
+
+        // Render calendar
+        const renderCalendar = () => {
+            const currentMonthYear = elements.currentMonthYear;
+            const calendarDays = elements.calendarDays;
+            
+            // Set month and year display
+            const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            currentMonthYear.textContent = `${monthNames[state.currentMonth]} ${state.currentYear}`;
+            
+            // Clear previous calendar
+            calendarDays.innerHTML = '';
+            
+            // Get first day of the month and number of days
+            const firstDay = new Date(state.currentYear, state.currentMonth, 1);
+            const lastDay = new Date(state.currentYear, state.currentMonth + 1, 0);
+            const numDays = lastDay.getDate();
+            
+            // Get day of week for first day (0 = Sunday, 1 = Monday, etc.)
+            const firstDayOfWeek = firstDay.getDay();
+            
+            // Get today's date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Add empty cells for days before the first of the month
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                const prevMonthDay = new Date(state.currentYear, state.currentMonth, -firstDayOfWeek + i + 1);
+                const dayCell = document.createElement('div');
+                dayCell.className = 'calendar-day h-10 flex items-center justify-center rounded-full text-sm inactive';
+                dayCell.textContent = prevMonthDay.getDate();
+                calendarDays.appendChild(dayCell);
+            }
+            
+            // Add cells for each day of the month
+            for (let i = 1; i <= numDays; i++) {
+                const date = new Date(state.currentYear, state.currentMonth, i);
+                const dayCell = document.createElement('div');
+                dayCell.className = 'calendar-day h-10 flex items-center justify-center rounded-full text-sm cursor-pointer';
+                dayCell.textContent = i;
+                
+                // Check if this is today
+                if (date.getDate() === today.getDate() && 
+                    date.getMonth() === today.getMonth() && 
+                    date.getFullYear() === today.getFullYear()) {
+                    dayCell.classList.add('today');
+                }
+                
+                // Check if the day is in the past
+                if (date < today) {
+                    dayCell.classList.add('disabled');
+                } else {
+                    // Check if it's a working day
+                    if (!state.schedule.workingDays.includes(date.getDay())) {
+                        dayCell.classList.add('disabled');
+                    } else {
+                        dayCell.addEventListener('click', () => {
+                            selectDate(new Date(date));
+                        });
+                    }
+                }
+                
+                // Check if this date is currently selected
+                if (state.selectedDate && 
+                    date.getDate() === state.selectedDate.getDate() && 
+                    date.getMonth() === state.selectedDate.getMonth() && 
+                    date.getFullYear() === state.selectedDate.getFullYear()) {
+                    dayCell.classList.add('selected');
+                }
+                
+                calendarDays.appendChild(dayCell);
+            }
+            
+            // Add empty cells for days after the last day of the month
+            const remainingCells = 7 - ((firstDayOfWeek + numDays) % 7);
+            if (remainingCells < 7) {
+                for (let i = 1; i <= remainingCells; i++) {
+                    const nextMonthDay = new Date(state.currentYear, state.currentMonth + 1, i);
+                    const dayCell = document.createElement('div');
+                    dayCell.className = 'calendar-day h-10 flex items-center justify-center rounded-full text-sm inactive';
+                    dayCell.textContent = nextMonthDay.getDate();
+                    calendarDays.appendChild(dayCell);
+                }
+            }
+        };
+
+        // Render time slots
+        const renderTimeSlots = () => {
+            const timeSlotsList = elements.timeSlotsList;
+            const noTimeSlotsMessage = elements.noTimeSlotsMessage;
+            const selectDateMessage = elements.selectDateMessage;
+            
+            // Hide messages by default
+            noTimeSlotsMessage.classList.add('hidden');
+            selectDateMessage.classList.add('hidden');
+            
+            // If date or barber is not selected, show appropriate message
+            if (!state.selectedDate) {
+                selectDateMessage.classList.remove('hidden');
+                timeSlotsList.classList.add('hidden');
+                return;
+            }
+            
+            if (!state.selectedBarber) {
+                noTimeSlotsMessage.textContent = 'Por favor, selecione um barbeiro para ver os horários disponíveis.';
+                noTimeSlotsMessage.classList.remove('hidden');
+                timeSlotsList.classList.add('hidden');
+                return;
+            }
+            
+            // Generate time slots for the selected date
+            const timeSlots = utils.generateTimeSlots(state.selectedDate);
+            
+            // If no time slots, show message
+            if (timeSlots.length === 0) {
+                noTimeSlotsMessage.textContent = 'Nenhum horário disponível para a data selecionada.';
+                noTimeSlotsMessage.classList.remove('hidden');
+                timeSlotsList.classList.add('hidden');
+                return;
+            }
+            
+            // Get service duration for availability check
+            let serviceDuration = 30;
+            if (state.selectedService) {
+                const service = state.services.find(s => s.id === state.selectedService);
+                if (service) {
+                    serviceDuration = service.duration;
+                }
+            }
+            
+            // Clear time slots list
+            timeSlotsList.innerHTML = '';
+            timeSlotsList.classList.remove('hidden');
+            
+            // Add time slots
+            timeSlots.forEach(slot => {
+                const isAvailable = utils.isTimeSlotAvailable(slot, state.selectedBarber, serviceDuration);
+                
+                const timeSlotElement = document.createElement('div');
+                timeSlotElement.className = `time-slot h-10 flex items-center justify-center rounded-md text-sm ${isAvailable ? 'cursor-pointer hover:bg-barber-primary hover:text-white' : 'time-slot-disabled'}`;
+                
+                // Style for selected time slot
+                if (state.selectedTime && slot.getTime() === state.selectedTime.getTime()) {
+                    timeSlotElement.className = 'time-slot h-10 flex items-center justify-center rounded-md text-sm bg-barber-primary text-white cursor-pointer';
+                } else if (isAvailable) {
+                    timeSlotElement.className = 'time-slot h-10 flex items-center justify-center rounded-md text-sm border border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-barber-primary hover:text-white transition-colors';
+                } else {
+                    timeSlotElement.className = 'time-slot h-10 flex items-center justify-center rounded-md text-sm time-slot-disabled';
+                }
+                
+                timeSlotElement.textContent = utils.formatTime(slot);
+                
+                if (isAvailable) {
+                    timeSlotElement.addEventListener('click', () => {
+                        selectTime(new Date(slot));
+                    });
+                }
+                
+                timeSlotsList.appendChild(timeSlotElement);
+            });
+            
+            // Check if all slots are unavailable
+            const availableSlots = Array.from(timeSlotsList.children).filter(slot => !slot.classList.contains('time-slot-disabled'));
+            
+            if (availableSlots.length === 0) {
+                noTimeSlotsMessage.textContent = 'Todos os horários estão ocupados para a data selecionada.';
+                noTimeSlotsMessage.classList.remove('hidden');
+                timeSlotsList.classList.add('hidden');
+            }
+        };
+
+        // Render user appointments
+        const renderUserAppointments = () => {
+            const appointmentsList = elements.appointmentsList;
+            const noAppointmentsMessage = elements.noAppointmentsMessage;
+            
+            // Clear previous appointments
+            appointmentsList.innerHTML = '';
+            
+            // Check if there are appointments
+            if (state.userAppointments.length === 0) {
+                appointmentsList.classList.add('hidden');
+                noAppointmentsMessage.classList.remove('hidden');
+                return;
+            }
+            
+            // Show appointments list and hide message
+            appointmentsList.classList.remove('hidden');
+            noAppointmentsMessage.classList.add('hidden');
+            
+            // Get services and barbers for display
+            state.userAppointments.forEach(appointment => {
+                const service = state.services.find(s => s.id === appointment.serviceId);
+                const barber = state.barbers.find(b => b.id === appointment.barberId);
+                
+                // Skip if service or barber not found
+                if (!service || !barber) {
+                    console.error('Service or barber not found for appointment:', appointment);
+                    return;
+                }
+                
+                // Create appointment card
+                const appointmentCard = document.createElement('div');
+                appointmentCard.className = 'appointment-card bg-white dark:bg-barber-secondary rounded-lg shadow-lg overflow-hidden';
+                
+                // Format date and time
+                const appointmentDate = appointment.date instanceof Date ? appointment.date : new Date(appointment.date);
+                const formattedDate = utils.formatDate(appointmentDate);
+                const formattedTime = utils.formatTime(appointmentDate);
+                
+                // Determine appointment status
+                const now = new Date();
+                let status = 'scheduled';
+                let statusText = 'Agendado';
+                let statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+                
+                if (appointmentDate < now) {
+                    status = 'completed';
+                    statusText = 'Concluído';
+                    statusClass = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+                }
+                
+                if (appointment.cancelled) {
+                    status = 'cancelled';
+                    statusText = 'Cancelado';
+                    statusClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                }
+                
+                appointmentCard.innerHTML = `
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                                ${statusText}
+                            </span>
+                            <h3 class="text-lg font-semibold mt-1">${service.name}</h3>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-gray-500 dark:text-gray-400">Código</div>
+                            <div class="font-mono">${appointment.id}</div>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">Data</div>
+                                <div class="font-medium">${formattedDate}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">Horário</div>
+                                <div class="font-medium">${formattedTime}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">Barbeiro</div>
+                                <div class="font-medium">${barber.name}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">Preço</div>
+                                <div class="font-medium text-barber-primary">${utils.formatCurrency(service.price)}</div>
+                            </div>
+                        </div>
+                        ${status === 'scheduled' ? `
+                            <button class="cancel-appointment-btn w-full py-2 px-4 border border-red-500 text-red-500 rounded-md font-medium hover:bg-red-50 dark:hover:bg-red-900 dark:hover:bg-opacity-20 focus:outline-none transition-colors" data-appointment-id="${appointment.id}">
+                                Cancelar Agendamento
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+                
+                // Add event listener to cancel button
+                if (status === 'scheduled') {
+                    const cancelButton = appointmentCard.querySelector('.cancel-appointment-btn');
+                    cancelButton.addEventListener('click', () => {
+                        openCancelModal(appointment.id);
+                    });
+                }
+                
+                appointmentsList.appendChild(appointmentCard);
+            });
+        };
+
+        // Open cancel confirmation modal
+        const openCancelModal = (appointmentId) => {
+            elements.cancelAppointmentId.value = appointmentId;
+            elements.cancelModal.classList.remove('hidden');
+        };
+
+        // Close cancel confirmation modal
+        const closeCancelModal = () => {
+            elements.cancelModal.classList.add('hidden');
+        };
+
+        // Cancel appointment
+        const cancelAppointment = async (appointmentId) => {
+            utils.showLoading();
+            
+            try {
+                // Find the appointment
+                const appointmentIndex = state.userAppointments.findIndex(a => a.id === appointmentId);
+                
+                if (appointmentIndex === -1) {
+                    utils.hideLoading();
+                    utils.showToast('Agendamento não encontrado', 'error');
+                    return;
+                }
+                
+                const appointment = state.userAppointments[appointmentIndex];
+                
+                // Update in Firestore if it's a Firebase appointment
+                if (appointment.source === 'firebase') {
+                    await db.collection('appointments').doc(appointmentId).update({
+                        cancelled: true,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                
+                // Update in local state
+                state.userAppointments[appointmentIndex] = {
+                    ...appointment,
+                    cancelled: true,
+                    updatedAt: new Date()
+                };
+                
+                // Update in localStorage
+                const localAppointments = utils.getAppointmentsFromLocalStorage();
+                const localAppointmentIndex = localAppointments.findIndex(a => a.id === appointmentId);
+                
+                if (localAppointmentIndex !== -1) {
+                    localAppointments[localAppointmentIndex] = {
+                        ...localAppointments[localAppointmentIndex],
+                        cancelled: true,
+                        updatedAt: new Date()
+                    };
+                    
+                    utils.saveAppointmentsToLocalStorage(localAppointments);
+                }
+                
+                // Close modal and refresh UI
+                closeCancelModal();
+                renderUserAppointments();
+                
+                utils.hideLoading();
+                utils.showToast('Agendamento cancelado com sucesso', 'success');
+            } catch (error) {
+                console.error('Error cancelling appointment:', error);
+                utils.hideLoading();
+                utils.showToast('Erro ao cancelar agendamento', 'error');
+            }
+        };
+
+        // Save appointment
+        const saveAppointment = async (appointmentData) => {
+            utils.showLoading();
+            
+            try {
+                // Generate a short ID
+                const shortId = utils.generateShortId();
+                
+                // Create appointment object
+                const appointment = {
+                    ...appointmentData,
+                    id: shortId,
+                    createdAt: new Date(),
+                    cancelled: false
+                };
+                
+                // If user is logged in, add to Firestore
+                if (state.isLoggedIn && state.user) {
+                    // Add user ID
+                    appointment.userId = state.user.uid;
+                    
+                    // Convert date to Firebase timestamp
+                    const firebaseAppointment = {
+                        ...appointment,
+                        date: firebase.firestore.Timestamp.fromDate(appointment.date),
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    
+                    // Save to Firestore
+                    await db.collection('appointments').doc(shortId).set(firebaseAppointment);
+                }
+                
+                // Get existing appointments from localStorage
+                const localAppointments = utils.getAppointmentsFromLocalStorage();
+                
+                // Add to localStorage
+                localAppointments.push(appointment);
+                utils.saveAppointmentsToLocalStorage(localAppointments);
+                
+                // Add to user appointments state
+                state.userAppointments.push({...appointment, source: state.isLoggedIn ? 'firebase' : 'local'});
+                
+                // Add to appointments state
+                state.appointments.push(appointment);
+                
+                utils.hideLoading();
+                
+                // Show success modal
+                showSuccessModal(appointment);
+                
+                // Reset form and selections
+                resetBookingForm();
+            } catch (error) {
+                console.error('Error saving appointment:', error);
+                utils.hideLoading();
+                utils.showToast('Erro ao salvar agendamento', 'error');
+            }
+        };
+
+        // Show success modal
+        const showSuccessModal = (appointment) => {
+            // Get service and barber
+            const service = state.services.find(s => s.id === appointment.serviceId);
+            const barber = state.barbers.find(b => b.id === appointment.barberId);
+            
+            // Set modal values
+            elements.modalService.textContent = service.name;
+            elements.modalBarber.textContent = barber.name;
+            elements.modalDate.textContent = utils.formatDate(appointment.date);
+            elements.modalTime.textContent = utils.formatTime(appointment.date);
+            elements.modalName.textContent = appointment.clientName;
+            elements.modalAppointmentId.textContent = appointment.id;
+            
+            // Show modal
+            elements.successModal.classList.remove('hidden');
+        };
+
+        // Close success modal
+        const closeSuccessModal = () => {
+            elements.successModal.classList.add('hidden');
+        };
+
+        // Reset booking form
+        const resetBookingForm = () => {
+            // Reset selections
+            state.selectedService = null;
+            state.selectedBarber = null;
+            state.selectedDate = null;
+            state.selectedTime = null;
+            
+            // Reset UI
+            renderScheduleServices();
+            renderScheduleBarbers();
+            renderCalendar();
+            
+            // Hide time slots
+            elements.timeSlotsList.classList.add('hidden');
+            elements.selectDateMessage.classList.remove('hidden');
+            elements.noTimeSlotsMessage.classList.add('hidden');
+            
+            // Reset summary
+            updateSummary();
+            
+            // Reset form fields
+            elements.appointmentForm.reset();
+            
+            // If user is logged in, repopulate their details
+            if (state.isLoggedIn && state.user) {
+                if (state.user.displayName) {
+                    elements.clientName.value = state.user.displayName;
+                }
+                if (state.user.email) {
+                    elements.clientEmail.value = state.user.email;
+                }
+            }
+        };
+
+        // Set active tab
+        const setActiveTab = (tabId) => {
+            state.currentTab = tabId;
+            
+            // Update tab buttons
+            elements.tabButtons.forEach(button => {
+                if (button.getAttribute('data-tab') === tabId) {
+                    button.classList.add('text-barber-primary');
+                    button.classList.remove('text-gray-600', 'dark:text-gray-300');
+                } else {
+                    button.classList.remove('text-barber-primary');
+                    button.classList.add('text-gray-600', 'dark:text-gray-300');
+                }
+            });
+            
+            // Update tab content
+            elements.tabContents.forEach(content => {
+                if (content.id === `${tabId}Tab`) {
+                    content.classList.remove('hidden');
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+            
+            // Update tab indicator position
+            const activeButton = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+            if (activeButton) {
+                const indicator = elements.tabIndicator;
+                indicator.style.width = `${activeButton.offsetWidth}px`;
+                indicator.style.transform = `translateX(${activeButton.offsetLeft}px)`;
+            }
+            
+            // Special handling for appointment tab
+            if (tabId === 'appointments') {
+                loadUserAppointments();
+            }
+        };
+
+        // Get previous month
+        const getPreviousMonth = () => {
+            if (state.currentMonth === 0) {
+                state.currentMonth = 11;
+                state.currentYear--;
+            } else {
+                state.currentMonth--;
+            }
+            
+            renderCalendar();
+        };
+
+        // Get next month
+        const getNextMonth = () => {
+            if (state.currentMonth === 11) {
+                state.currentMonth = 0;
+                state.currentYear++;
+            } else {
+                state.currentMonth++;
+            }
+            
+            renderCalendar();
+        };
+
+        // Search appointments by phone
+        const searchAppointmentsByPhone = async (phone) => {
+            utils.showLoading();
+            
+            try {
+                // Normalize phone number
+                const normalizedPhone = utils.normalizePhoneNumber(phone);
+                
+                if (!normalizedPhone) {
+                    utils.hideLoading();
+                    utils.showToast('Por favor, digite um número de telefone válido', 'error');
+                    return;
+                }
+                
+                // Save phone number to state
+                state.searchPhone = normalizedPhone;
+                
+                // Query appointments from Firestore
+                const snapshot = await db.collection('appointments')
+                    .where('clientPhone', '==', normalizedPhone)
+                    .get();
+                
+                // Get appointments from localStorage
+                const localAppointments = utils.getAppointmentsFromLocalStorage();
+                const matchingLocalAppointments = localAppointments.filter(a => 
+                    utils.normalizePhoneNumber(a.clientPhone) === normalizedPhone
+                );
+                
+                // Combine appointments
+                state.userAppointments = [
+                    ...snapshot.docs.map(doc => {
+                        const data = doc.data();
+                        // Convert Firestore timestamp to JS Date
+                        if (data.date && typeof data.date.toDate === 'function') {
+                            data.date = data.date.toDate();
+                        }
+                        return {
+                            id: doc.id,
+                            ...data,
+                            source: 'firebase'
+                        };
+                    }),
+                    ...matchingLocalAppointments.map(a => ({
+                        ...a,
+                        date: new Date(a.date),
+                        source: 'local'
+                    }))
+                ];
+                
+                // Sort appointments by date (newest first)
+                state.userAppointments.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Update UI
+                renderUserAppointments();
+                
+                utils.hideLoading();
+            } catch (error) {
+                console.error('Error searching appointments:', error);
+                utils.hideLoading();
+                utils.showToast('Erro ao buscar agendamentos', 'error');
+            }
+        };
+
+        // Initialize application
+        const init = () => {
+            // Set up tab navigation
+            elements.tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabId = button.getAttribute('data-tab');
+                    setActiveTab(tabId);
+                });
+            });
+            
+            // Set up tab links in footer
+            elements.tabLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tabId = link.getAttribute('data-tab-link');
+                    setActiveTab(tabId);
+                    window.scrollTo(0, 0);
+                });
+            });
+            
+            // Set up calendar navigation
+            elements.prevMonthBtn.addEventListener('click', getPreviousMonth);
+            elements.nextMonthBtn.addEventListener('click', getNextMonth);
+            
+            // Set up appointment form submission
+            elements.appointmentForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                if (!state.selectedService || !state.selectedBarber || !state.selectedDate || !state.selectedTime) {
+                    utils.showToast('Por favor, preencha todas as informações do agendamento', 'error');
+                    return;
+                }
+                
+                // Create appointment data
+                const appointmentData = {
+                    serviceId: state.selectedService,
+                    barberId: state.selectedBarber,
+                    date: state.selectedTime,
+                    clientName: elements.clientName.value,
+                    clientPhone: elements.clientPhone.value,
+                    clientEmail: elements.clientEmail.value || null,
+                    notes: elements.clientNotes.value || null,
+                    serviceDuration: state.services.find(s => s.id === state.selectedService).duration
+                };
+                
+                // Save appointment
+                saveAppointment(appointmentData);
+            });
+            
+            // Set up search form submission
+            elements.searchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                searchAppointmentsByPhone(elements.searchPhone.value);
+            });
+            
+            // Set up refresh appointments button
+            elements.refreshAppointmentsBtn.addEventListener('click', () => {
+                if (state.searchPhone) {
+                    searchAppointmentsByPhone(state.searchPhone);
+                } else {
+                    loadUserAppointments();
+                }
+            });
+            
+            // Set up go to schedule button
+            elements.goToScheduleBtn.addEventListener('click', () => {
+                setActiveTab('schedule');
+            });
+            
+            // Set up success modal buttons
+            elements.closeSuccessModalBtn.addEventListener('click', closeSuccessModal);
+            elements.viewAppointmentsBtn.addEventListener('click', () => {
+                closeSuccessModal();
+                setActiveTab('appointments');
+            });
+            elements.newAppointmentBtn.addEventListener('click', () => {
+                closeSuccessModal();
+                setActiveTab('schedule');
+            });
+            
+            // Set up cancel modal buttons
+            elements.closeCancelModalBtn.addEventListener('click', closeCancelModal);
+            elements.cancelNoBtn.addEventListener('click', closeCancelModal);
+            elements.cancelYesBtn.addEventListener('click', () => {
+                const appointmentId = elements.cancelAppointmentId.value;
+                cancelAppointment(appointmentId);
+            });
+            
+            // Initialize calendar
+            renderCalendar();
+            
+            // Add event listeners for login
+            elements.googleLoginBtn.addEventListener('click', authFunctions.googleLogin);
+            elements.guestLoginBtn.addEventListener('click', authFunctions.guestLogin);
+            elements.userProfileBtn.addEventListener('click', authFunctions.toggleUserDropdown);
+            elements.logoutBtn.addEventListener('click', authFunctions.logout);
+            
+            // Initialize authentication
+            authFunctions.initAuth();
+        };
+
+        // Start the app
+        init();
+    </script>
+
+
+</body></html>
